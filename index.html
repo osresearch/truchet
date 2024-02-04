@@ -1,0 +1,201 @@
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.0/dist/svg.min.js"></script>
+</head>
+<body>
+
+<button onclick="download()">Download</button>
+
+<script>
+// A6 is 148mm x 105mm
+var do_arcs = 1;
+var max_x = do_arcs ? 23 : 20;
+var max_y = do_arcs ? 16 : 14;
+var smooth = 0;
+
+max_x = 46;
+max_y = 32;
+
+var svg = SVG().addTo('body').size(1480,1050);
+
+function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+  var angleInRadians = (angleInDegrees-90) * Math.PI / 180.0;
+
+  return {
+    x: centerX + (radius * Math.cos(angleInRadians)),
+    y: centerY + (radius * Math.sin(angleInRadians))
+  };
+}
+
+function describeArc(x, y, radius, startAngle, endAngle)
+{
+
+    var start = polarToCartesian(x, y, radius, endAngle);
+    var end = polarToCartesian(x, y, radius, startAngle);
+
+    var largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+
+	
+    //var c1 = polarToCartesian(x,y, radius*smooth(Math.sqrt(2)/2+smooth*smooth/2), (startAngle + endAngle) / 2);
+
+    var c1x = start.x;
+    var c1y = start.y
+    var c2x = end.x;
+    var c2y = end.y
+	var scale = 0.6; // 0.5522 * 2; // something with tan 3/4
+
+	if (startAngle == 0)
+	{
+		c1y -= smooth * radius * scale;
+		c2x += smooth * radius * scale;
+	} else
+	if (startAngle == 90)
+	{
+		c1x += smooth * radius * scale;
+		c2y += smooth * radius * scale;
+	} else
+	if (startAngle == 180)
+	{
+		c1y += smooth * radius * scale;
+		c2x -= smooth * radius * scale;
+	} else
+	{
+		c1x -= smooth * radius * scale;
+		c2y -= smooth * radius * scale;
+	}
+
+    var d = [
+        "M", start.x, start.y, 
+        "C", c1x, c1y, c2x, c2y, end.x, end.y
+    ].join(" ");
+
+    return d;       
+}
+
+function arc(g, x, y, radius, start, end)
+{
+	return g.path(describeArc(x,y,radius,start,end));
+}
+
+
+function rng(n=2)
+{
+	var f = 0;
+	for(var i = 0 ; i < n ; i++)
+		f += Math.random();
+	return f / n;
+}
+
+
+function draw_tile(g)
+{
+	let data = g.data('tile');
+	let i = data.i;
+	let j = data.j;
+
+	let px = 10*i;
+	let py = 10*j;
+		let upper_left = (i == 0 && j == 0);
+		let upper_right = (i == 0 && j == max_y-1);
+		let lower_left = (i == max_x-1 && j == 0);
+		let lower_right = (i == max_x-1 && j == max_y-1);
+
+	smooth = (2*i + j/2) / (2*max_x + max_y/2);
+	//smooth = (i + j) / (max_x + max_y);
+	//smooth = i / max_x;
+	smooth = 1 - Math.sqrt(Math.pow(i-max_x/2,2) + Math.pow(j-(max_y-2),2)) / Math.sqrt(max_x*max_x + max_y*max_y) * 1.9;
+	if (smooth < 0) smooth = 0;
+	smooth = 1;
+
+	g.clear();
+
+	if (do_arcs)
+	{
+		if (g.tile)
+		{
+			if(!upper_left)
+				arc(g, px-5,py-5, 5, 90, 180)
+				.stroke({width: 1, color: "#000"})
+				.fill("none");
+
+			if (!lower_right)
+				arc(g, px+5,py+5, 5, -90, 0)
+				.stroke({width: 1, color: "#000"})
+				.fill("none");
+		} else {
+			if (!lower_left)
+				arc(g, px+5,py-5, 5, 180, 270)
+				.stroke({width: 1, color: "#000"})
+				.fill("none");
+
+			if (!upper_right)
+				arc(g, px-5,py+5, 5, 0, 90)
+				.stroke({width: 1, color: "#000"})
+				.fill("none");
+		}
+	} else {
+		if (data.tile)
+		{
+			if(!upper_left)
+				svg.line(px-5, py, px, py-5)
+				.stroke({width: 1, color: "#000"});
+
+			if(!lower_left)
+				svg.line(px, py+5, px+5, py)
+				.stroke({width: 1, color: "#000"});
+		} else {
+			if (!lower_left)
+				svg.line(px, py-5, px+5, py)
+				.stroke({width: 1, color: "#000"});
+			if (!upper_right)
+				svg.line(px-5, py, px, py+5)
+				.stroke({width: 1, color: "#000"});
+		}
+	}
+}
+
+for (let i = 0; i < max_x; i++) {
+	for (let j = 0; j < max_y; j++) {
+
+		let upper_left = (i == 0 && j == 0);
+		let upper_right = (i == 0 && j == max_y-1);
+		let lower_left = (i == max_x-1 && j == 0);
+		let lower_right = (i == max_x-1 && j == max_y-1);
+		//if ((i == 0 || i == max_x-1) && (j == 0 || j == max_y-1))
+			//continue;
+
+		let tile = Math.random() > 0.5;
+		if (upper_left || lower_right)
+			tile = true;
+		if (lower_left || upper_right)
+			tile = false;
+
+		let g = svg.group();
+		g.tile = tile;
+		g.data("tile", { i: i, j: j, tile: tile});
+
+		g.click(() => {
+			console.log(g);
+
+			// flip the file
+			g.tile = !g.tile;
+			draw_tile(g);
+		});
+		
+		draw_tile(g);
+
+	}
+}
+
+function download()
+{
+	var file = encodeURIComponent(svg.svg());
+	var element = document.createElement('a');
+	element.setAttribute('href', 'data:text/plain;charset=utf-8,' + file);
+	element.setAttribute('download', 'maze.svg');
+	element.style.display = 'none';
+	document.body.appendChild(element);
+	element.click();
+	document.body.removeChild(element);
+}
+</script>
